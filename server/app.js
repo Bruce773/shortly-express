@@ -1,3 +1,4 @@
+const Promise = require('bluebird');
 const express = require('express');
 const path = require('path');
 const utils = require('./lib/hashUtils');
@@ -6,7 +7,7 @@ const bodyParser = require('body-parser');
 const Auth = require('./middleware/auth');
 const models = require('./models');
 const mysql = require('mysql');
-const db = require('./db/index.js');
+var db = require('./db/index.js');
 
 const app = express();
 
@@ -16,6 +17,8 @@ app.use(partials());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
+
+// console.log('Database!!!!!', db.connection.queryAsync);
 
 app.get('/',
   (req, res) => {
@@ -92,13 +95,18 @@ app.get('/login', (req, res) => {
 })
 
 app.post('/login', (req, res) => {
-  console.log(req.body) //The user and pass as an object { username: 'Alex', password: 'Wallis' }
-  let sql = "SELECT salt FROM users WHERE username = req.body.username;"
-  console.log(connection)
-  // connection.connection.query(sql, (err, results) => {
-  //   console.log(results);
-  // })
-  // console.log(models.Users.compare(req.body.username, req.body.password))
+  // console.log(req.body) //The user and pass as an object { username: 'Alex', password: 'Wallis' }
+  const usersTable = new models.Models('users');
+  usersTable.get({username: req.body.username}).then((resp) => {
+    if(models.Users.compare(req.body.password, resp.password, resp.salt)){
+      console.log('Logged in!');
+      res.render('index');
+    }
+    // console.log('1: ',req.body.password, '2: ', resp.password, '3: ', resp.salt);
+    // console.log(models.Users.compare(req.body.password, resp.password, resp.salt));
+  }).error(error => {
+    res.status(500).send(error);
+  })
 })
 
 /************************************************************/
