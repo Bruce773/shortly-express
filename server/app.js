@@ -8,6 +8,7 @@ const Auth = require('./middleware/auth');
 const models = require('./models');
 const mysql = require('mysql');
 var db = require('./db/index.js');
+var session = require('express-session');
 
 const app = express();
 
@@ -17,12 +18,10 @@ app.use(partials());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
-app.use(express.session());
 
 // console.log('Database!!!!!', db.connection.queryAsync);
 
 var pageToRedirectTo = '/';
-var loggedIn = false;
 // var checkUser = (redirectToHere) => {}
 
 app.get('/', (req, res) => {
@@ -30,7 +29,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/create', (req, res) => {
-  if (loggedIn) {
+  if (session.user !== undefined) {
     res.render('index');
   } else {
     pageToRedirectTo = '/create';
@@ -39,7 +38,7 @@ app.get('/create', (req, res) => {
 });
 
 app.get('/links', (req, res, next) => {
-  if (loggedIn) {
+  if (session.user !== undefined) {
     models.Links.getAll()
       .then((links) => {
         res.status(200).send(links);
@@ -112,8 +111,7 @@ app.post('/login', (req, res) => {
     .then((resp) => {
       if (req.body.password && resp.password && resp.salt) {
         if (models.Users.compare(req.body.password, resp.password, resp.salt)) {
-          console.log('Logged in!');
-          loggedIn = true;
+          session.user = req.body.username;
           res.redirect(pageToRedirectTo);
         }
       } else {
