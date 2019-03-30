@@ -17,97 +17,118 @@ app.use(partials());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.session());
 
 // console.log('Database!!!!!', db.connection.queryAsync);
 
-app.get('/',
-  (req, res) => {
-    res.render('index');
-  });
+var pageToRedirectTo = '/';
+var loggedIn = false;
+// var checkUser = (redirectToHere) => {}
 
-app.get('/create',
-  (req, res) => {
-    res.render('index');
-  });
+app.get('/', (req, res) => {
+  res.render('index');
+});
 
-app.get('/links',
-  (req, res, next) => {
+app.get('/create', (req, res) => {
+  if (loggedIn) {
+    res.render('index');
+  } else {
+    pageToRedirectTo = '/create';
+    res.redirect('/login');
+  }
+});
+
+app.get('/links', (req, res, next) => {
+  if (loggedIn) {
     models.Links.getAll()
-      .then(links => {
+      .then((links) => {
         res.status(200).send(links);
       })
-      .error(error => {
+      .error((error) => {
         res.status(500).send(error);
       });
-  });
+  } else {
+    res.redirect('/login');
+  }
+});
 
-app.post('/links',
-  (req, res, next) => {
-    var url = req.body.url;
-    if (!models.Links.isValidUrl(url)) {
-      // send back a 404 if link is not valid
-      return res.sendStatus(404);
-    }
+app.post('/links', (req, res, next) => {
+  var url = req.body.url;
+  if (!models.Links.isValidUrl(url)) {
+    // send back a 404 if link is not valid
+    return res.sendStatus(404);
+  }
 
-    return models.Links.get({ url })
-      .then(link => {
-        if (link) {
-          throw link;
-        }
-        return models.Links.getUrlTitle(url);
-      })
-      .then(title => {
-        return models.Links.create({
-          url: url,
-          title: title,
-          baseUrl: req.headers.origin
-        });
-      })
-      .then(results => {
-        return models.Links.get({ id: results.insertId });
-      })
-      .then(link => {
+  return models.Links.get({ url })
+    .then((link) => {
+      if (link) {
         throw link;
-      })
-      .error(error => {
-        res.status(500).send(error);
-      })
-      .catch(link => {
-        res.status(200).send(link);
+      }
+      return models.Links.getUrlTitle(url);
+    })
+    .then((title) => {
+      return models.Links.create({
+        url: url,
+        title: title,
+        baseUrl: req.headers.origin,
       });
-  });
+    })
+    .then((results) => {
+      return models.Links.get({ id: results.insertId });
+    })
+    .then((link) => {
+      throw link;
+    })
+    .error((error) => {
+      res.status(500).send(error);
+    })
+    .catch((link) => {
+      res.status(200).send(link);
+    });
+});
 
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
 
 app.get('/signup', (req, res) => {
-  res.render("signup")
-})
+  res.render('signup');
+});
 
 app.post('/signup', (req, res) => {
   //console.log(req.body) //The user and pass as an object { username: 'Alex', password: 'Wallis' }
-  (models.Users.create(req.body))
-})
+  models.Users.create(req.body);
+});
 
 app.get('/login', (req, res) => {
-  res.render("login")
-})
+  res.render('login');
+});
 
 app.post('/login', (req, res) => {
   // console.log(req.body) //The user and pass as an object { username: 'Alex', password: 'Wallis' }
   const usersTable = new models.Models('users');
-  usersTable.get({username: req.body.username}).then((resp) => {
-    if(models.Users.compare(req.body.password, resp.password, resp.salt)){
-      console.log('Logged in!');
-      res.render('index');
-    }
-    // console.log('1: ',req.body.password, '2: ', resp.password, '3: ', resp.salt);
-    // console.log(models.Users.compare(req.body.password, resp.password, resp.salt));
-  }).error(error => {
-    res.status(500).send(error);
-  })
-})
+  usersTable
+    .get({ username: req.body.username })
+    .then((resp) => {
+      if (req.body.password && resp.password && resp.salt) {
+        if (models.Users.compare(req.body.password, resp.password, resp.salt)) {
+          console.log('Logged in!');
+          loggedIn = true;
+          res.redirect(pageToRedirectTo);
+        }
+      } else {
+        new Error('Error!');
+      }
+      // console.log('1: ',req.body.password, '2: ', resp.password, '3: ', resp.salt);
+      // console.log(models.Users.compare(req.body.password, resp.password, resp.salt));
+    })
+    .error((error) => {
+      res.render('404', { status: 404 });
+    })
+    .catch(() => {
+      res.render('404', { status: 404 });
+    });
+});
 
 /************************************************************/
 // Handle the code parameter route last - if all other routes fail
@@ -116,22 +137,20 @@ app.post('/login', (req, res) => {
 /************************************************************/
 
 app.get('/:code', (req, res, next) => {
-
   return models.Links.get({ code: req.params.code })
-    .tap(link => {
-
+    .tap((link) => {
       if (!link) {
         throw new Error('Link does not exist');
       }
       return models.Clicks.create({ linkId: link.id });
     })
-    .tap(link => {
+    .tap((link) => {
       return models.Links.update(link, { visits: link.visits + 1 });
     })
     .then(({ url }) => {
       res.redirect(url);
     })
-    .error(error => {
+    .error((error) => {
       res.status(500).send(error);
     })
     .catch(() => {
