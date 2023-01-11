@@ -22,7 +22,7 @@
     "express": "^4.13.4",
     "express-partials": "^0.3.0",
     "express-session": "^1.15.6",
-    "knex": "^0.6.10",
+    "knex": "^2.4.0",
     "lodash": "^4.17.4",
     "mysql": "^2.12.0",
     "node-mocks-http": "^1.6.1",
